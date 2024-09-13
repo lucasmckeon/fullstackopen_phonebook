@@ -1,28 +1,11 @@
+import 'dotenv/config'
+
 import express from 'express'
 import morgan from 'morgan'
+import { Person } from './model/phonebook.js'
 
-let phonebook = [
-  { 
-    "id": "1",
-    "name": "Arto Hellas", 
-    "number": "040-123456"
-  },
-  { 
-    "id": "2",
-    "name": "Ada Lovelace", 
-    "number": "39-44-5323523"
-  },
-  { 
-    "id": "3",
-    "name": "Dan Abramov", 
-    "number": "12-43-234345"
-  },
-  { 
-    "id": "4",
-    "name": "Mary Poppendieck", 
-    "number": "39-23-6423122"
-  }
-]
+
+
 
 const PORT = process.env.PORT || 3001
 const app = express()
@@ -45,44 +28,51 @@ app.get('/',(request,response)=>{
 })
 
 app.get('/api/persons',(request,response)=>{
-  response.json(phonebook)
+  Person.find({}).then(persons=>{
+    persons.forEach(person=>{
+      console.log(`${person.name} ${person.number}`)
+    })
+    response.json(persons)
+    //mongoose.connection.close()
+  })
+  
 })
 
 app.get('/api/persons/:id',(request,response)=>{
   const id = request.params.id
-  if(!phonebook.find(person => person.id === id)){
-    response.status(404).end()
-  }
-  response.json(phonebook[id])
+  Person.findById(id).then(person => {
+    if(person ===null){
+      response.sendStatus(404)
+      return
+    }
+    response.json(person)
+    return
+  })
 })
 
 app.get('/info',(request,response)=>{
   const date = (new Date()).toString()
-  const peopleCount = phonebook.length
-  response.send(`<div><p>Phonebook has info for ${peopleCount} people</p><p>${date}</p></div>`)
+  Person.find({}).then(result=>{
+    response.send(`<div><p>Phonebook has info for ${result.length} people</p><p>${date}</p></div>`)
+    return;
+  })
 })
 
 app.delete('/api/persons/:id',(request,response)=>{
   const id = request.params.id
-  if(!phonebook.find(person => person.id === id)){
-    response.status(404).send(`Deletion of person with id:${id} failed as that person does not exist`)
-  }
-  phonebook = phonebook.filter(person => person.id!==id)
-  response.sendStatus(204)
+  Person.findById(id).then(person => {
+    if(person ===null){
+      response.status(404).send(`Deletion of person with id:${id} failed as that person does not exist`)
+      return
+    }
+    Person.deleteOne({_id:id}).then((result)=>{
+      console.log("RESULT",result)
+      response.status(204).send(result)
+      return
+    })  
+  })
 })
-
-function getRandomInt(max) {
-  return Math.floor(Math.random() * max)
-}
-
-function generateId(){
-  const rand = getRandomInt(1000)
-  if(phonebook[rand]){
-    return generateId()
-  }
-  return rand
-}
-
+ 
 app.post('/api/persons',(request,response)=>{
   const data = request.body
   if(!data.name || !data.number){
@@ -90,18 +80,19 @@ app.post('/api/persons',(request,response)=>{
     response.status(422).send({error:'name and number must be provided'})
     return
   }
-  if(phonebook.find(person => person.name === data.name)){
-    //409: Conflict 
-    response.status(409).send({error:`Person with name ${data.name} already exists`})
-    return
-  }
-  const person = {
-    name:data.name,
-    number:data.number,
-    id:generateId()
-  }
-  phonebook.push(person)
-  response.json(person)
+  Person.findOne({name:data.name}).then(foundPerson => {
+    if(foundPerson){
+      //409: Conflict 
+      response.status(409).send({error:`Person with name ${data.name} already exists`})
+      return
+    }
+    const person = new Person({
+      name:data.name,
+      number:data.number
+    })
+    person.save().then(person=>response.json(person))    
+  })
+  
 })
 
 const unknownEndpoint = (request,response)=>{
