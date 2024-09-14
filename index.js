@@ -27,53 +27,48 @@ app.get('/',(request,response)=>{
   response.send("<h1>Phonebook</h1>")
 })
 
-app.get('/api/persons',(request,response)=>{
+app.get('/api/persons',(request,response,next)=>{
   Person.find({}).then(persons=>{
     persons.forEach(person=>{
       console.log(`${person.name} ${person.number}`)
     })
-    response.json(persons)
-    //mongoose.connection.close()
-  })
+    response.json(persons) 
+  }).catch(error=>next(error))
   
 })
 
-app.get('/api/persons/:id',(request,response)=>{
+app.get('/api/persons/:id',(request,response,next)=>{
   const id = request.params.id
   Person.findById(id).then(person => {
-    if(person ===null){
+    if(person === null){
       response.sendStatus(404)
       return
     }
     response.json(person)
     return
-  })
+  }).catch(error => next(error))
 })
 
-app.get('/info',(request,response)=>{
+app.get('/info',(request,response,next)=>{
   const date = (new Date()).toString()
   Person.find({}).then(result=>{
     response.send(`<div><p>Phonebook has info for ${result.length} people</p><p>${date}</p></div>`)
     return;
-  })
+  }).catch(error => next(error))
 })
 
-app.delete('/api/persons/:id',(request,response)=>{
+app.delete('/api/persons/:id',(request,response,next)=>{
   const id = request.params.id
-  Person.findById(id).then(person => {
-    if(person ===null){
-      response.status(404).send(`Deletion of person with id:${id} failed as that person does not exist`)
+  Person.findByIdAndDelete(id).then(result=>{
+    if(result.deletedCount === 0){
+      response.status(404).end()
       return
     }
-    Person.deleteOne({_id:id}).then((result)=>{
-      console.log("RESULT",result)
-      response.status(204).send(result)
-      return
-    })  
-  })
+    response.status(204).send(result)
+  }).catch(error=>next(error))
 })
  
-app.post('/api/persons',(request,response)=>{
+app.post('/api/persons',(request,response,next)=>{
   const data = request.body
   if(!data.name || !data.number){
     //422 : Unprocessable Entity 
@@ -91,8 +86,21 @@ app.post('/api/persons',(request,response)=>{
       number:data.number
     })
     person.save().then(person=>response.json(person))    
-  })
-  
+  }).catch(error => next(error))
+})
+
+app.put('/api/persons/:id',(request,response,next)=>{
+  const id = request.params.id
+  const body = request.body
+  console.log("BODY",body)
+  const person = {
+    name:body.name,
+    number:body.number
+  }
+  Person.findByIdAndUpdate(id,person,{new:true}).then(result =>{
+    response.json(result)
+    return
+  }).catch(error=>next(error))
 })
 
 const unknownEndpoint = (request,response)=>{
@@ -100,6 +108,14 @@ const unknownEndpoint = (request,response)=>{
 }
 app.use(unknownEndpoint)
 
+const errorHandler = (error,request,response,next) => {
+  console.error(error.message)
+  if(error.name === 'CastError'){
+    return response.status(400).send({error:'malformatted id'})
+  }
+  next(error)
+}
+app.use(errorHandler)
 app.listen(PORT,()=>{
   console.log("Started our app on port: " + PORT)
 })
