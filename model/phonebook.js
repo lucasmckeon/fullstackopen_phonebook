@@ -9,8 +9,25 @@ mongoose.connect(url).then(result => {
 })
 
 const personSchema = new mongoose.Schema({
-  name: String,
-  number: String,
+  name: {
+    type:String,
+    minLength:3,
+    required:true
+  },
+  number: {
+    type:String,
+    minLength:8,
+    validate:{
+      validator:(val)=>{
+        //Find the -, check if left part has two or three numbers,
+        // and if right part has numbers 
+        const index = val.indexOf('-')
+        if( index === -1 || ( index!== 2 && index !== 3) ) return false
+        return (!isNaN(val.substring(0,index)) && !isNaN(val.substring(index + 1)))
+      }
+    },
+    required:true
+  },
 })
 
 personSchema.set('toJSON', {

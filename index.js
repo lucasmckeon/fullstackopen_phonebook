@@ -69,12 +69,7 @@ app.delete('/api/persons/:id',(request,response,next)=>{
 })
  
 app.post('/api/persons',(request,response,next)=>{
-  const data = request.body
-  if(!data.name || !data.number){
-    //422 : Unprocessable Entity 
-    response.status(422).send({error:'name and number must be provided'})
-    return
-  }
+  const data = request.body 
   Person.findOne({name:data.name}).then(foundPerson => {
     if(foundPerson){
       //409: Conflict 
@@ -85,8 +80,9 @@ app.post('/api/persons',(request,response,next)=>{
       name:data.name,
       number:data.number
     })
-    person.save().then(person=>response.json(person))    
-  }).catch(error => next(error))
+    person.save()
+    .then(person=>response.json(person)).catch(error => next(error))    
+  }).catch(error => next(error)) 
 })
 
 app.put('/api/persons/:id',(request,response,next)=>{
@@ -97,7 +93,8 @@ app.put('/api/persons/:id',(request,response,next)=>{
     name:body.name,
     number:body.number
   }
-  Person.findByIdAndUpdate(id,person,{new:true}).then(result =>{
+  Person.findByIdAndUpdate(id,person,{new:true,runValidators:true,context:'query'})
+  .then(result =>{
     response.json(result)
     return
   }).catch(error=>next(error))
@@ -112,6 +109,9 @@ const errorHandler = (error,request,response,next) => {
   console.error(error.message)
   if(error.name === 'CastError'){
     return response.status(400).send({error:'malformatted id'})
+  } else if(error.name === 'ValidationError'){
+    //https://www.rfc-editor.org/rfc/rfc9110#name-422-unprocessable-content
+    return response.status(422).json({error:error.message})
   }
   next(error)
 }
